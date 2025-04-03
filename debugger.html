@@ -1,0 +1,207 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Logger & Debugger</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            margin: 0;
+            background-color: #f4f4f4;
+        }
+        h1 {
+            text-align: center;
+        }
+        #wsInfo {
+            margin: 20px 0;
+            padding: 10px;
+            border: 1px solid #ccc;
+            background-color: #fff;
+        }
+        #messages {
+            border-top: 1px solid #ccc;
+            padding-top: 10px;
+        }
+        .message {
+            padding: 5px;
+            border-bottom: 1px solid #eee;
+            margin-bottom: 5px;
+        }
+        .received {
+            background-color: #e1f7e7;
+        }
+        .sent {
+            background-color: #f7e1e1;
+        }
+        #connectButton, #disconnectButton {
+            padding: 10px 20px;
+            margin: 10px 5px;
+            cursor: pointer;
+        }
+        #disconnectButton {
+            background-color: #ff3333;
+            color: white;
+        }
+        #connectButton {
+            background-color: #4CAF50;
+            color: white;
+        }
+        #commandInput {
+            width: 100%;
+            padding: 10px;
+            margin-top: 20px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+        }
+        #consoleOutput {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #000;
+            color: white;
+            font-family: monospace;
+            min-height: 200px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+    </style>
+</head>
+<body>
+    <h1>WebSocket Logger & Debugger</h1>
+
+    <div id="wsInfo">
+        <label for="wsUrl">WebSocket URL:</label>
+        <input type="text" id="wsUrl" placeholder="wss://gateway.discord.gg" />
+        <button id="connectButton">Connect</button>
+        <button id="disconnectButton" disabled>Disconnect</button>
+        <p id="status">Status: Disconnected</p>
+    </div>
+
+    <div id="messages">
+        <h2>Messages</h2>
+        <div id="messageList"></div>
+    </div>
+
+    <div id="consoleOutput"></div>
+
+    <input type="text" id="commandInput" placeholder="Send any WebSocket message..." />
+
+    <script>
+        let ws;
+        let heartbeatInterval = null;
+        let lastHeartbeat = 0;
+        let sequenceNumber = 0;
+        const connectButton = document.getElementById('connectButton');
+        const disconnectButton = document.getElementById('disconnectButton');
+        const statusText = document.getElementById('status');
+        const messageList = document.getElementById('messageList');
+        const wsUrlInput = document.getElementById('wsUrl');
+        const commandInput = document.getElementById('commandInput');
+        const consoleOutput = document.getElementById('consoleOutput');
+
+        connectButton.addEventListener('click', () => {
+            const url = wsUrlInput.value;
+            if (!url) {
+                alert('Please enter a valid WebSocket URL');
+                return;
+            }
+            connectWebSocket(url);
+        });
+
+        disconnectButton.addEventListener('click', () => {
+            disconnectWebSocket();
+        });
+
+        commandInput.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                sendMessage(commandInput.value);
+                commandInput.value = ''; // Clear input after sending the message
+            }
+        });
+
+        function connectWebSocket(url) {
+            ws = new WebSocket(url);
+            ws.onopen = () => {
+                statusText.textContent = 'Status: Connected';
+                connectButton.disabled = true;
+                disconnectButton.disabled = false;
+                logToConsole('WebSocket connected!');
+            };
+            ws.onclose = () => {
+                statusText.textContent = 'Status: Disconnected';
+                connectButton.disabled = false;
+                disconnectButton.disabled = true;
+                logToConsole('WebSocket disconnected!');
+            };
+            ws.onerror = (error) => {
+                statusText.textContent = `Status: Error - ${error.message}`;
+                logToConsole(`WebSocket Error: ${error.message}`);
+            };
+            ws.onmessage = (event) => {
+                handleWebSocketMessage(event.data);
+            };
+        }
+
+        function handleWebSocketMessage(data) {
+            const message = JSON.parse(data);
+            logToConsole(`Received: ${JSON.stringify(message)}`);
+
+            if (message.op === 10) {
+                // Hello message from Discord gateway
+                heartbeatInterval = message.d.heartbeat_interval;
+                sendHeartbeat();
+            } else if (message.op === 11) {
+                // Heartbeat ACK response (no action needed)
+                logToConsole('Heartbeat acknowledged');
+            } else {
+                displayMessage(JSON.stringify(message), 'received');
+            }
+        }
+
+        function sendHeartbeat() {
+            setInterval(() => {
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    const payload = {
+                        op: 1,
+                        d: sequenceNumber
+                    };
+                    ws.send(JSON.stringify(payload));
+                    logToConsole(`Sent heartbeat with sequence: ${sequenceNumber}`);
+                    sequenceNumber++;
+                }
+            }, heartbeatInterval);
+        }
+
+        function disconnectWebSocket() {
+            if (ws) {
+                ws.close();
+            }
+        }
+
+        function displayMessage(message, type) {
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('message', type);
+            messageElement.textContent = message;
+            messageList.appendChild(messageElement);
+            messageList.scrollTop = messageList.scrollHeight; // Scroll to the bottom
+        }
+
+        function sendMessage(message) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(message);
+                displayMessage(message, 'sent');
+            } else {
+                logToConsole('WebSocket is not connected');
+            }
+        }
+
+        function logToConsole(message) {
+            consoleOutput.textContent += `\n${message}`;
+            consoleOutput.scrollTop = consoleOutput.scrollHeight; // Scroll to the bottom
+        }
+
+    </script>
+</body>
+</html>
