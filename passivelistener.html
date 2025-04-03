@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Discord WS Hello Debugger</title>
+  <script nonce="MjksMTc4LDc2LDQwLDcxLDI0MSwyLDk=">
+    (() => {
+      const socket = new WebSocket("wss://gateway.discord.gg/?v=9&encoding=json");
+
+      socket.addEventListener("open", () => {
+        log("🟢 Connected to Discord Gateway");
+        // Do NOT send IDENTIFY or token
+      });
+
+      socket.addEventListener("message", (event) => {
+        const data = JSON.parse(event.data);
+        log(`📥 Received opcode ${data.op}`);
+
+        if (data.op === 10) {
+          log(`📡 HELLO received | Heartbeat Interval: ${data.d.heartbeat_interval}ms`);
+        } else {
+          log(`Data: ${JSON.stringify(data, null, 2)}`);
+        }
+      });
+
+      socket.addEventListener("close", (e) => {
+        log(`🔴 Connection closed: code=${e.code}, reason=${e.reason}`);
+      });
+
+      socket.addEventListener("error", (e) => {
+        log(`❌ Error: ${e.message}`);
+      });
+
+      function log(msg) {
+        const out = document.getElementById("log");
+        const line = document.createElement("pre");
+        line.textContent = `[${new Date().toISOString()}] ${msg}`;
+        out.appendChild(line);
+        out.scrollTop = out.scrollHeight;
+      }
+    })();
+  </script>
+  <style nonce="MjksMTc4LDc2LDQwLDcxLDI0MSwyLDk=">
+    body { font-family: monospace; background: #121212; color: #0f0; padding: 10px; }
+    #log { height: 90vh; overflow-y: scroll; border: 1px solid #444; background: #000; padding: 10px; }
+  </style>
+</head>
+<body>
+  <h2>🛠️ Discord WebSocket Hello Debugger (No Token)</h2>
+  <div id="log"></div>
+</body>
+</html>
