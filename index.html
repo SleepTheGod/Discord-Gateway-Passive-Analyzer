@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>WebSocket Passive Analyzer</title>
+  <script nonce="MjksMTc4LDc2LDQwLDcxLDI0MSwyLDk=">
+    (() => {
+      const GATEWAY = "wss://gateway.discord.gg/?v=9&encoding=json";
+      const socket = new WebSocket(GATEWAY);
+      let connectedAt = null;
+      let packetCounter = 0;
+
+      const colors = {
+        reset: "\x1b[0m",
+        green: "\x1b[32m",
+        cyan: "\x1b[36m",
+        red: "\x1b[31m",
+        yellow: "\x1b[33m"
+      };
+
+      function log(msg, type = "log") {
+        const el = document.createElement("pre");
+        el.textContent = `[${new Date().toISOString()}] ${msg}`;
+        document.getElementById("log").appendChild(el);
+        document.getElementById("log").scrollTop = 999999;
+        console[type](msg);
+      }
+
+      socket.addEventListener("open", () => {
+        connectedAt = Date.now();
+        log("🟢 WebSocket connected");
+      });
+
+      socket.addEventListener("message", (event) => {
+        packetCounter++;
+        const raw = event.data;
+        let data;
+
+        try {
+          data = JSON.parse(raw);
+        } catch (e) {
+          log("⚠️ Malformed packet received", "warn");
+          return;
+        }
+
+        const { op, s, t, d } = data;
+
+        switch (op) {
+          case 10:
+            log(`📡 HELLO opcode received`);
+            log(`  ⤷ Heartbeat interval: ${d.heartbeat_interval}ms`);
+            break;
+          case 11:
+            log(`💓 Heartbeat ACK`);
+            break;
+          default:
+            if (t) {
+              log(`📥 Gateway Event (${t})`);
+            } else {
+              log(`📦 Opcode ${op} (Unidentified)`);
+            }
+        }
+      });
+
+      socket.addEventListener("close", (e) => {
+        const duration = connectedAt ? `${((Date.now() - connectedAt) / 1000).toFixed(2)}s` : "unknown";
+        log(`🔴 Disconnected — code: ${e.code}, reason: ${e.reason || "No reason"}, uptime: ${duration}`);
+        log(`📊 Packets received: ${packetCounter}`);
+      });
+
+      socket.addEventListener("error", (e) => {
+        log(`❌ Socket error: ${e.message || "Unknown error"}`, "error");
+      });
+
+      window.debuggerMeta = {
+        started: new Date().toISOString(),
+        source: "WebSocket Passive Analyzer",
+        clientBuild: "385240",
+        debugNonce: "MjksMTc4LDc2LDQwLDcxLDI0MSwyLDk="
+      };
+    })();
+  </script>
+  <style nonce="MjksMTc4LDc2LDQwLDcxLDI0MSwyLDk=">
+    body {
+      background-color: #0f0f0f;
+      color: #00ffcc;
+      font-family: monospace;
+      padding: 20px;
+    }
+    h1 {
+      font-weight: bold;
+      font-size: 1.5rem;
+      margin-bottom: 10px;
+    }
+    #log {
+      border: 1px solid #333;
+      padding: 10px;
+      background: #000;
+      height: 80vh;
+      overflow-y: scroll;
+      white-space: pre-wrap;
+    }
+    pre {
+      margin: 0;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <h1>🔍 Discord Gateway Passive Analyzer</h1>
+  <div id="log"></div>
+</body>
+</html>
